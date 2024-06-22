@@ -1,0 +1,48 @@
+/* @import './base.css'; */
+@import 'primeicons/primeicons.css';
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: scroll;
+  position: relative;
+}
+
+#app {
+  width: 100%;
+  min-height: 100%;
+  min-width: fit-content;
+  padding: 0rem;
+  padding-bottom: 20px;
+  font-weight: normal;
+  background: #2b1a4b; /* fallback for old browsers */
+  background: -webkit-radial-gradient(
+    circle at 70%,
+    #4a3375 0,
+    #25193b 100%
+  ); /* Chrome 10-25, Safari 5.1-6 */
+  background: radial-gradient(
+    circle at 70%,
+    #4a3375 0,
+    #25193b 100%
+  ); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+}
+
+.display-none {
+  display: none;
+}
+
+.jetbrains {
+  font-family: 'JetBrains Mono', monospace;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
+}
