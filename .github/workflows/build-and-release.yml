@@ -4,12 +4,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v2
@@ -22,40 +25,13 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Create a ZIP file of the build
-        run: zip -r build.zip dist/
-
-      - name: Upload ZIP file as artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: build-zip
-          path: build.zip
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm install
-
       - name: Get version from package.json
         id: get_version
         run: |
           echo "VERSION=$(node -p -e "require('./package.json').version")" >> $GITHUB_ENV
 
-      - name: Download ZIP file
-        uses: actions/download-artifact@v2
-        with:
-          name: build-zip
+      - name: Create a ZIP file of the build
+        run: zip -r build.zip dist/
 
       - name: Create a new release
         id: create_release
@@ -63,7 +39,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          tag_name: 'v${{ env.VERSION }}'
+          tag_name: 'v${{ env.VERSION }}-${{ env.GITHUB_SHA_SHORT }}'
           release_name: 'Release v${{ env.VERSION }}'
           draft: false
           prerelease: false
