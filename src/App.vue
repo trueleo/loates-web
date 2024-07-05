@@ -28,11 +28,17 @@ watch(
 )
 
 onMounted(async () => {
+  let sse_api = import.meta.env.FETCH_BASE_URL
+  if (sse_api == undefined) {
+    sse_api = '/updates'
+  } else {
+    sse_api = sse_api + '/updates'
+  }
+
   const eventSource = new EventSource('http://localhost:3000/updates')
 
   eventSource.onmessage = function (event) {
     app.state = new AppState(JSON.parse(event.data))
-    console.log(JSON.parse(event.data))
     if (
       app.state.currentScenario == app.state.scenarios.length - 1 &&
       app.state.scenarios[app.state.currentScenario].execs.every((exec) => exec.ended)
