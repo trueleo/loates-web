@@ -1,6 +1,6 @@
 {
-  "name": "rusher-web",
-  "version": "1.0.0",
+  "name": "loates-web",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {

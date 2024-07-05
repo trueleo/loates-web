@@ -72,7 +72,7 @@ const paused = (exec: ExecutorState) => {
       <p>
         <span class="pi pi-chart-bar text-4xl font-light"></span>
         &nbsp;
-        <span class="text-4xl font-light jetbrains">Rusher</span>
+        <span class="text-4xl font-light jetbrains">Loates</span>
       </p>
       <TabList class="flex justify-center items-stretch gap-4 overflow-x-scroll w-fit">
         <Tab
