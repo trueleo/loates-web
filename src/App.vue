@@ -1,151 +1,95 @@
+/home/trueleo/git/loates-web/src/App.vue
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
-import { AppState, Duration, ExecutorState, MetricType } from './app'
-import ExecutorComponent from './components/ExecutorComponent.vue'
-import InfoComponent from './components/InfoComponent.vue'
-import MetricComponent from './components/MetricComponent.vue'
+import { onMounted, reactive, ref, computed, type Component } from 'vue'
+import { AppState } from './app'
+import type { NodeInformation, RunState } from './app'
 
-import { TabGroup, TabList, Tab, TabPanels, TabPanel } from '@headlessui/vue'
+import Sidebar from './components/SideBar.vue'
+import NodeInfo from './NodeInfo.vue'
+import NotFound from './NotFound.vue'
 
-import ScenarioDisplay from './components/ScenarioDisplay.vue'
+// assigned on mount
+const nodeInfo = ref<NodeInformation>({ name: '', role: 'master', ip: '', status: 'running' })
+const nodes = ref<NodeInformation[]>([])
+const isMaster = ref<boolean>(false)
 
-const app = reactive({
+const app = reactive<{
+  state: AppState
+  runState: RunState
+}>({
   state: new AppState({
     currentScenario: 0,
     scenarios: []
-  })
+  }),
+  runState: 'startable'
 })
 
-let manually_selected = ref(0)
+const currentPage = ref(0)
+const routes: [string, Component][] = [
+  ['Summary', NotFound],
+  ['History', NotFound],
+  ['Nodes', NodeInfo],
+  ['Plan', NotFound]
+]
+const pages = routes.map((route) => route[0])
 
-watch(
-  () => app.state.currentScenario,
-  (current, old) => {
-    if (old != current) {
-      manually_selected.value = current
-    }
+window.addEventListener('hashchange', () => {
+  let index = pages.findIndex(
+    (page) => page.toLowerCase() == window.location.hash.slice(1).toLowerCase()
+  )
+  if (currentPage.value == index) {
+    return
   }
-)
+  currentPage.value = index
+})
+
+const currentView = computed(() => {
+  if (currentPage.value < 0) {
+    window.location.hash = '#NotFound'
+    return NotFound
+  } else {
+    window.location.hash = `#${pages[currentPage.value]}`
+    return routes[currentPage.value][1] || NotFound
+  }
+})
 
 onMounted(async () => {
-  let sse_api = import.meta.env.FETCH_BASE_URL
-  if (sse_api == undefined) {
-    sse_api = '/updates'
-  } else {
-    sse_api = sse_api + '/updates'
-  }
-
-  const eventSource = new EventSource('http://localhost:3000/updates')
-
-  eventSource.onmessage = function (event) {
-    app.state = new AppState(JSON.parse(event.data))
-    if (
-      app.state.currentScenario == app.state.scenarios.length - 1 &&
-      app.state.scenarios[app.state.currentScenario].execs.every((exec) => exec.ended)
-    ) {
-      eventSource.close()
-    }
-  }
-
-  eventSource.onerror = function (event) {
-    eventSource.close()
-    console.error('EventSource failed:', event)
-  }
+  nodeInfo.value = (await fetch('/api/node_information').then((res) =>
+    res.json()
+  )) as NodeInformation
+  isMaster.value = nodeInfo.value.role == 'master'
+  nodes.value = (await fetch('/api/nodes').then((res) => res.json())) as NodeInformation[]
 })
-
-const started = (exec: ExecutorState) => {
-  return (
-    exec.startTime != undefined && exec.priorDuration.nanos == 0 && exec.priorDuration.secs == 0
-  )
-}
-
-const paused = (exec: ExecutorState) => {
-  return exec.ended != true && exec.startTime == null && exec.startTime == undefined
-}
 </script>
 
 <template>
-  <TabGroup :selected-index="manually_selected" :default-index="0">
-    <header
-      class="flex w-full justify-between items-center p-4 pl-8 bg-gray-950 gap-2 text-gray-50"
-    >
-      <p>
-        <span class="pi pi-chart-bar text-4xl font-light"></span>
-        &nbsp;
-        <span class="text-4xl font-light jetbrains">Loates</span>
-      </p>
-      <TabList class="flex justify-center items-stretch gap-4 overflow-x-scroll w-fit">
-        <Tab
-          v-for="(scenario, index) in app.state.scenarios"
-          :key="index"
-          v-slot="{ selected }"
-          @click="manually_selected = index"
-        >
-          <ScenarioDisplay
-            :name="scenario.name"
-            :execs="scenario.execNames()"
-            :duration="
-              scenario.execs
-                .map((exec) => {
-                  return exec.totalDuration ? exec.totalDuration : Duration.ZERO
-                })
-                .reduce((x, y) => x.add(y))
-                .to_luxon()
-            "
-            :selected="selected"
-          />
-
-          <!-- <button
-            :class="[
-              '',
-              'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2',
-             
-            ]"
-          >
-            {{ scenario.name }}
-          </button> -->
-        </Tab>
-      </TabList>
+  <div class="flex flex-col h-full w-full bg-side dark:bg-side-dark text-text font-jetbrains">
+    <!-- Header stays fixed -->
+    <header class="bg-side dark:bg-side-dark text-text dark:text-text-dark px-6 py-2 w-full">
+      <h1
+        class="mt-2 ml-4 text-xl font-bold uppercase relative max-w-fit text-accent-dark dark:text-accent"
+      >
+        Loates
+      </h1>
     </header>
 
-    <TabPanels class="pt-4 px-2 min-w-full text-gray-50">
-      <TabPanel
-        v-for="(scenario, index) in app.state.scenarios"
-        :key="index"
-        class="flex flex-row min-w-full justify-center gap-5"
+    <!-- Sidebar + Main split -->
+    <div class="flex-grow flex flex-row w-full overflow-hidden">
+      <Sidebar
+        class="min-h-full"
+        :pages="pages"
+        v-model:currentPage="currentPage"
+        v-model:runState="app.runState"
+      />
+
+      <!-- Only this section should scroll -->
+      <main
+        class="flex-grow bg-background dark:bg-background-dark rounded-l-2xl overflow-auto my-2"
       >
-        <div
-          class="rounded-lg border-1 bg-black/40 flex flex-col justify-start items-stretch flex-grow min-w-[35rem] max-w-[70rem]"
-          v-for="(exec, index) in scenario.execs"
-          :key="index"
-        >
-          <ExecutorComponent class="bg-black/20 rounded-t-2xl min-w-max" :state="exec" />
-          <div
-            v-if="started(exec) || !paused(exec)"
-            class="py-2 px-4 flex justify-start items-start flex-wrap gap-y-6"
-          >
-            <InfoComponent :state="exec" class="min-w-max max-h-max flex-[2]" />
-            <div class="flex flex-col gap-y-2 text-gray-300 min-w-[30rem] flex-[3]">
-              <MetricComponent
-                :metrics="
-                  exec.metrics.filter((metric) => metric[0].metricType == MetricType.Counter)
-                "
-              />
-              <MetricComponent
-                :metrics="
-                  exec.metrics.filter((metric) => metric[0].metricType == MetricType.Histogram)
-                "
-              />
-              <MetricComponent
-                :metrics="exec.metrics.filter((metric) => metric[0].metricType == MetricType.Gauge)"
-              />
-            </div>
-          </div>
-          <div v-else-if="paused(exec)" class="text-center my-8">has not started yet</div>
-        </div>
-      </TabPanel>
-    </TabPanels>
-  </TabGroup>
+        <component :is="currentView" :nodes="nodes" />
+      </main>
+    </div>
+  </div>
 </template>
 
-<style scoped></style>
+<style></style>

@@ -1,48 +1,54 @@
 /* @import './base.css'; */
 @import 'primeicons/primeicons.css';
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-gb-50: #dffbfb;
+  --color-gb-100: #c4f7f8;
+  --color-gb-200: #84eff0;
+  --color-gb-300: #49e7e9;
+  --color-gb-400: #19cfd2;
+  --color-gb-500: #129497;
+  --color-gb-600: #0e7576;
+  --color-gb-700: #0b5a5b;
+  --color-gb-800: #073a3b;
+  --color-gb-900: #041f20;
+  --color-gb-950: #020d0e;
+
+  --color-side: var(--color-gb-100);
+  --color-side-dark: var(--color-gb-900);
+
+  /* Light mode colors (default) */
+  --color-primary: rgb(104 211 145); /* A deep purple */
+  --color-secondary: var(--color-gb-300); /* A vibrant yellow */
+  --color-accent: var(--color-gb-200); /* A fresh green */
+  --color-background: var(--color-gb-50); /* White background */
+  --color-text: rgb(45 55 72); /* Dark gray text */
+  --color-border: rgb(226 232 240); /* Light gray border */
+
+  /* Dark mode colors */
+  --color-primary-dark: rgb(72 187 120); /* A lighter purple */
+  --color-secondary-dark: var(--color-gb-800); /* A lighter yellow */
+  --color-accent-dark: var(--color-gb-900); /* A lighter green */
+  --color-background-dark: var(--color-gb-950); /* Very dark gray background */
+  --color-text-dark: rgb(226 232 240); /* Light gray text */
+  --color-border-dark: rgb(74 85 104); /* Darker gray border */
+
+  --font-jetbrains: 'JetBrains Mono', monospace;
+  --font-roboto: 'Roboto Mono', monospace;
+}
 
 html,
-body {
+body,
+#app {
   height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
   overflow: scroll;
   position: relative;
-}
-
-#app {
-  width: 100%;
-  min-height: 100%;
-  min-width: fit-content;
-  padding: 0rem;
-  padding-bottom: 20px;
-  font-weight: normal;
-  background: #2b1a4b; /* fallback for old browsers */
-  background: -webkit-radial-gradient(
-    circle at 70%,
-    #4a3375 0,
-    #25193b 100%
-  ); /* Chrome 10-25, Safari 5.1-6 */
-  background: radial-gradient(
-    circle at 70%,
-    #4a3375 0,
-    #25193b 100%
-  ); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
-}
-
-.display-none {
-  display: none;
-}
-
-.jetbrains {
-  font-family: 'JetBrains Mono', monospace;
-  font-optical-sizing: auto;
-  font-weight: 500;
-  font-style: normal;
+  box-sizing: border-box;
 }

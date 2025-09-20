@@ -444,3 +444,12 @@ export class AppState {
     }
   }
 }
+
+export interface NodeInformation {
+  name: string
+  role: 'master' | 'worker'
+  status: 'running' | 'idle'
+  ip: string
+}
+
+export type RunState = 'running' | 'startable' | 'paused'
