@@ -56,7 +56,7 @@ const isHovered = ref(false)
 
 <template>
   <div
-    class="bg-side dark:bg-side-dark p-4 pt-8 shadow-md w-64 text-text dark:text-text-dark flex flex-col justify-between"
+    class="bg-side dark:bg-side-dark p-4 pt-8 shadow-md text-text dark:text-text-dark flex flex-col justify-between"
   >
     <div class="flex flex-col justify-between space-y-4 font-roboto uppercase">
       <div

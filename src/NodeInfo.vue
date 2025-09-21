@@ -8,7 +8,7 @@ defineProps<{
 
 <template>
   <div
-    class="flex flex-wrap h-full w-full justify-start items-start place-content-start gap-4 p-4 text-text dark:text-text-dark overflow-y-scroll"
+    class="flex flex-wrap justify-start items-start place-content-start gap-4 p-4 text-text dark:text-text-dark overflow-y-scroll"
   >
     <div
       v-for="node in nodes"

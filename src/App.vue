@@ -74,9 +74,9 @@ onMounted(async () => {
     </header>
 
     <!-- Sidebar + Main split -->
-    <div class="flex-grow flex flex-row w-full overflow-hidden">
+    <div class="flex-grow flex w-full overflow-hidden">
       <Sidebar
-        class="min-h-full"
+        class="min-h-full min-w-48"
         :pages="pages"
         v-model:currentPage="currentPage"
         v-model:runState="app.runState"
