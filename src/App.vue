@@ -1,12 +1,38 @@
-/home/trueleo/git/loates-web/src/App.vue
 <script setup lang="ts">
+import AppSidebar from './components/AppSidebar.vue'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from './components/ui/breadcrumb'
+import { Separator } from './components/ui/separator'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from './components/ui/sidebar'
+
 import { onMounted, reactive, ref, computed, type Component } from 'vue'
 import { AppState } from './app'
 import type { NodeInformation, RunState } from './app'
 
-import Sidebar from './components/SideBar.vue'
-import NodeInfo from './NodeInfo.vue'
-import NotFound from './NotFound.vue'
+import NodeInfo from './pages/NodeInfo.vue'
+import NotFound from './pages/NotFound.vue'
+
+// On first load, check system preference
+if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  document.documentElement.classList.add('dark')
+} else {
+  document.documentElement.classList.remove('dark')
+}
+
+// Optional: keep it synced if user changes OS theme while open
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  if (e.matches) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+})
 
 // assigned on mount
 const nodeInfo = ref<NodeInformation>({ name: '', role: 'master', ip: '', status: 'running' })
@@ -31,8 +57,8 @@ const routes: [string, Component][] = [
   ['Nodes', NodeInfo],
   ['Plan', NotFound]
 ]
-const pages = routes.map((route) => route[0])
 
+const pages = routes.map((route) => route[0])
 window.addEventListener('hashchange', () => {
   let index = pages.findIndex(
     (page) => page.toLowerCase() == window.location.hash.slice(1).toLowerCase()
@@ -63,33 +89,31 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full w-full bg-side dark:bg-side-dark text-text font-jetbrains">
-    <!-- Header stays fixed -->
-    <header class="bg-side dark:bg-side-dark text-text dark:text-text-dark px-6 py-2 w-full">
-      <h1
-        class="mt-2 ml-4 text-xl font-bold uppercase relative max-w-fit text-accent-dark dark:text-accent"
-      >
-        Loates
-      </h1>
-    </header>
-
-    <!-- Sidebar + Main split -->
-    <div class="flex-grow flex w-full overflow-hidden">
-      <Sidebar
-        class="min-h-full min-w-48"
-        :pages="pages"
-        v-model:currentPage="currentPage"
-        v-model:runState="app.runState"
-      />
-
-      <!-- Only this section should scroll -->
-      <main
-        class="flex-grow bg-background dark:bg-background-dark rounded-l-2xl overflow-auto my-2"
-      >
+  <SidebarProvider>
+    <AppSidebar />
+    <SidebarInset>
+      <header class="flex h-16 shrink-0 items-center gap-2">
+        <div class="flex items-center gap-2 px-4">
+          <SidebarTrigger class="-ml-1" />
+          <Separator orientation="vertical" class="mr-2 h-4" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem class="hidden md:block">
+                <BreadcrumbLink href="#"> Building Your Application </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator class="hidden md:block" />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Data Fetching</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+      </header>
+      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
         <component :is="currentView" :nodes="nodes" />
-      </main>
-    </div>
-  </div>
+      </div>
+    </SidebarInset>
+  </SidebarProvider>
 </template>
 
 <style></style>
