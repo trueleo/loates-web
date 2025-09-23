@@ -17,6 +17,7 @@ import type { NodeInformation, RunState } from './app'
 
 import NodeInfo from './pages/NodeInfo.vue'
 import NotFound from './pages/NotFound.vue'
+import SummaryView from './pages/SummaryView.vue'
 
 // On first load, check system preference
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -52,7 +53,7 @@ const app = reactive<{
 
 const currentPage = ref(0)
 const routes: [string, Component][] = [
-  ['Summary', NotFound],
+  ['Summary', SummaryView],
   ['History', NotFound],
   ['Nodes', NodeInfo],
   ['Plan', NotFound]
@@ -90,28 +91,9 @@ onMounted(async () => {
 
 <template>
   <SidebarProvider>
-    <AppSidebar />
+    <AppSidebar :active-page="currentPage" />
     <SidebarInset>
-      <header class="flex h-16 shrink-0 items-center gap-2">
-        <div class="flex items-center gap-2 px-4">
-          <SidebarTrigger class="-ml-1" />
-          <Separator orientation="vertical" class="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem class="hidden md:block">
-                <BreadcrumbLink href="#"> Building Your Application </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator class="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-      </header>
-      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <component :is="currentView" :nodes="nodes" />
-      </div>
+      <component :is="currentView" :nodes="nodes" />
     </SidebarInset>
   </SidebarProvider>
 </template>

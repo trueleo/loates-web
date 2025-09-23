@@ -29,6 +29,7 @@ defineProps<{
 }>()
 
 const { isMobile, state } = useSidebar()
+const iconSize = 32
 </script>
 
 <template>
@@ -42,11 +43,12 @@ const { isMobile, state } = useSidebar()
             :tooltip="item.title"
             size="lg"
             class="flex items-center"
+            :isActive="item.isActive"
             :class="{ 'justify-center': state == 'collapsed' }"
           >
             <a :href="item.url">
-              <component :is="item.icon" />
-              <span v-show="state != 'collapsed'">{{ item.title }}</span>
+              <component :is="item.icon" :size="iconSize" />
+              <span class="text-lg" v-show="state != 'collapsed'">{{ item.title }}</span>
             </a>
           </SidebarMenuButton>
           <template v-if="item.items?.length">

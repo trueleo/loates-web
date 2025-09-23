@@ -21,8 +21,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from '@/components/ui/sidebar'
+import { computed } from 'vue'
 
-const data = {
+const props = defineProps<{
+  activePage: number
+}>()
+
+const data = computed(() => ({
   user: {
     name: 'shadcn',
     email: 'm@example.com',
@@ -33,22 +38,25 @@ const data = {
       title: 'Summary',
       url: '#summary',
       icon: ChartArea,
-      isActive: true
+      isActive: props.activePage === 0
     },
     {
       title: 'History',
       url: '#history',
-      icon: History
+      icon: History,
+      isActive: props.activePage === 1
     },
     {
       title: 'Nodes',
       url: '#nodes',
-      icon: Computer
+      icon: Computer,
+      isActive: props.activePage === 2
     },
     {
       title: 'Plan',
       url: '#plan',
-      icon: SquareChartGantt
+      icon: SquareChartGantt,
+      isActive: props.activePage === 3
     }
   ],
   navSecondary: [
@@ -68,7 +76,7 @@ const data = {
       icon: Send
     }
   ]
-}
+}))
 </script>
 
 <template>
