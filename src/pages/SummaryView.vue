@@ -7,8 +7,11 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-
 import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Skeleton } from '@/components/ui/skeleton'
+
+import LineChartInfoComponent from '@/components/LineChartInfoComponent.vue'
+import CounterComponent from '@/components/CounterComponent.vue'
 
 import { computed, ref } from 'vue'
 import { Check, Users, Clock2, Clock4, Timer } from 'lucide-vue-next'
@@ -52,11 +55,110 @@ const current_scenario_info = computed(() => {
     [Timer, 'Duration', formatDuration(duration)]
   ]
 })
+const infoRow1 = [
+  {
+    title: 'VUs',
+    data: [
+      { x: 0, y: 0 },
+      { x: 1, y: 10 },
+      { x: 2, y: 30 },
+      { x: 3, y: 50 },
+      { x: 4, y: 70 },
+      { x: 5, y: 80 },
+      { x: 6, y: 78 },
+      { x: 7, y: 75 },
+      { x: 8, y: 72 },
+      { x: 9, y: 70 } // Test is still running, VUs are active
+    ]
+  },
+  {
+    title: 'RPS',
+    data: [
+      { x: 0, y: 0 },
+      { x: 1, y: 5 },
+      { x: 2, y: 20 },
+      { x: 3, y: 35 },
+      { x: 4, y: 45 },
+      { x: 5, y: 50 },
+      { x: 6, y: 49 },
+      { x: 7, y: 47 },
+      { x: 8, y: 46 },
+      { x: 9, y: 45 } // Test is still running, RPS are active
+    ]
+  },
+  {
+    title: 'Throughput',
+    data: [
+      { x: 0, y: 0 },
+      { x: 1, y: 50 },
+      { x: 2, y: 200 },
+      { x: 3, y: 350 },
+      { x: 4, y: 450 },
+      { x: 5, y: 500 },
+      { x: 6, y: 490 },
+      { x: 7, y: 470 },
+      { x: 8, y: 460 },
+      { x: 9, y: 450 } // Test is still running, throughput is active
+    ]
+  },
+  {
+    title: 'Success Rate',
+    data: [
+      { x: 0, y: 100 },
+      { x: 1, y: 100 },
+      { x: 2, y: 99 },
+      { x: 3, y: 98 },
+      { x: 4, y: 97 },
+      { x: 5, y: 95 },
+      { x: 6, y: 96 },
+      { x: 7, y: 96 },
+      { x: 8, y: 95 },
+      { x: 9, y: 94 } // Still running, might have some fluctuations
+    ]
+  },
+  {
+    title: 'Error Rate',
+    data: [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 2, y: 1 },
+      { x: 3, y: 2 },
+      { x: 4, y: 3 },
+      { x: 5, y: 5 },
+      { x: 6, y: 4 },
+      { x: 7, y: 4 },
+      { x: 8, y: 5 },
+      { x: 9, y: 6 } // Still running, might have some errors
+    ]
+  }
+]
+
+const overviewPlot = {
+  title: 'Performance',
+  data: [
+    { time: 0, vus: 1000, errorRate: 0, responseTime: 100 },
+    { time: 1, vus: 1000, errorRate: 0, responseTime: 100 },
+    { time: 2, vus: 99, errorRate: 1, responseTime: 100 },
+    { time: 3, vus: 98, errorRate: 2, responseTime: 100 },
+    { time: 4, vus: 97, errorRate: 3, responseTime: 100 },
+    { time: 5, vus: 95, errorRate: 5, responseTime: 100 },
+    { time: 6, vus: 96, errorRate: 4, responseTime: 100 },
+    { time: 7, vus: 96, errorRate: 4, responseTime: 100 },
+    { time: 8, vus: 95, errorRate: 5, responseTime: 100 },
+    { time: 9, vus: 94, errorRate: 6, responseTime: 100 }
+  ]
+}
+
+const counters = [
+  { tags: ['PUT', 'example.com'], value: 10 },
+  { tags: ['GET', 'example.com'], value: 10 },
+  { tags: ['POST', 'example.com'], value: 20 }
+]
 </script>
 
 <template>
-  <div class="h-full w-full flex flex-col">
-    <header class="flex justify-start items-center gap-2 p-2">
+  <div class="h-full w-full flex flex-col p-4 g gap-2">
+    <header class="flex justify-start items-center gap-2">
       <SidebarTrigger class="ml-1 bg-secondary" />
       <div class="flex-shrink-0 font-semibold text-md mx-auto">Scenario 1</div>
       <Select>
@@ -77,7 +179,7 @@ const current_scenario_info = computed(() => {
     </header>
 
     <!-- Load Test Information Row -->
-    <div class="flex items-center gap-6 px-4 py-2 text-sm">
+    <div class="flex items-center gap-6 text-sm mb-2">
       <div
         :class="[
           'px-2 py-0.5 rounded-sm font-semibold text-sm text-green-400 capitalize  ring-2 ring-green-400',
@@ -91,9 +193,52 @@ const current_scenario_info = computed(() => {
       </div>
     </div>
 
-    <!-- Empty space below -->
-    <div class="flex-grow flex justify-around items-center bg-background">
-      <p>This space is intentionally left empty for future content.</p>
+    <div class="flex items-center justify-center gap-4 w-full">
+      <LineChartInfoComponent
+        v-for="(item, index) in infoRow1"
+        :key="index"
+        :overlay="item.title"
+        :data="item.data"
+        :index="'x'"
+        :category="['y']"
+        :area="['y']"
+        class="flex-grow"
+      />
+    </div>
+
+    <div class="flex items-center justify-center gap-4 w-full">
+      <LineChartInfoComponent
+        :overlay="overviewPlot.title"
+        :data="overviewPlot.data"
+        :index="'time'"
+        :category="['vus', 'errorRate', 'responseTime']"
+        :area="['vus']"
+        showGridLine
+        showLegend
+        class="flex-grow h-52 p-4"
+      />
+    </div>
+    <div class="flex-grow flex flex-col justify-start items-start border-1 rounded gap-2 p-2">
+      <div class="inline-flex flex-wrap gap-2">
+        <CounterComponent
+          v-for="(item, index) in counters"
+          :key="index"
+          :tags="item.tags"
+          :count="item.value"
+        />
+      </div>
+      <div class="flex-grow flex-col flex-wrap gap-2">
+        <CounterComponent
+          v-for="(item, index) in counters"
+          :key="index"
+          :tags="item.tags"
+          :count="item.value"
+        />
+      </div>
+    </div>
+
+    <div class="flex-grow flex justify-center items-center border-1 rounded">
+      <Skeleton class="w-[100px] h-5 rounded-full" />
     </div>
   </div>
 </template>
