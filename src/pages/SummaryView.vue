@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import LineChartInfoComponent from '@/components/LineChartInfoComponent.vue'
 import CounterComponent from '@/components/CounterComponent.vue'
 import MetricHistogram from '@/components/MetricHistogram.vue'
+import MetricGauge from '@/components/MetricGauge.vue'
 
 import { computed, ref } from 'vue'
 import { Check, Users, Clock2, Clock4, Timer } from 'lucide-vue-next'
@@ -204,7 +205,7 @@ const metrics = [
   },
   {
     tags: ['GET', 'example.com'],
-    type: 'guage',
+    type: 'gauge',
     value: [
       {
         time: 1,
@@ -318,7 +319,7 @@ const metrics = [
           :count="item.value"
         />
       </div>
-      <div class="flex gap-2 w-full">
+      <div class="flex flex-wrap gap-x-2 gap-y-4 w-full">
         <template v-for="(item, index) in metrics" :key="index">
           <MetricHistogram
             v-if="item.type === 'histogram'"
@@ -328,7 +329,18 @@ const metrics = [
             :index="'value'"
             showAxisX
             showAxisY
-            class="h-36 w-auto"
+            class="h-44 w-xl"
+          />
+          <MetricGauge
+            v-else-if="item.type === 'gauge'"
+            :tags="item.tags"
+            :data="item.value"
+            :index="'time'"
+            :category="['value']"
+            :area="['value']"
+            showAxisX
+            showAxisY
+            class="h-44 w-xl"
           />
         </template>
       </div>

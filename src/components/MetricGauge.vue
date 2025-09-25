@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart } from '@/components/ui/chart-bar'
+import { LineChart } from '@/components/ui/chart-line'
 import { CurveType } from '@unovis/ts'
 
 const props = defineProps<{
@@ -26,17 +26,17 @@ const props = defineProps<{
     </span>
 
     <div class="h-full w-full">
-      <BarChart
-        class="h-full w-full"
+      <LineChart
         :data="props.data"
         :categories="category"
         :index="index"
-        :margin="{ top: 10, left: 10, bottom: 25, right: 10 }"
+        class="h-full w-full"
+        :margin="{ top: 10, left: 10, bottom: 30, right: 10 }"
         :showXAxis="showAxisX"
         :showYAxis="showAxisY"
         :showLegend="showLegend"
         :showGridLine="showGridLine"
-        :showTooltip="true"
+        :curveType="CurveType.MonotoneX"
         :area="area"
       />
     </div>
