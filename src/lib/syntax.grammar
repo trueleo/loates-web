@@ -1,0 +1,50 @@
+@top Program { expression* }
+
+@skip { space | LineComment }
+
+expression {
+  Null |
+  Variable |
+  String |
+  Boolean |
+  Digit |
+  HexDigit |
+  Fraction |
+  HttpMethod |
+  HttpVersion |
+  Section |
+  UrlProtocol |
+  Path
+}
+
+@tokens {
+  Null { "null" }
+
+  Variable { "{{" ![\n]* "}}" }
+
+  String { '"' (!["\\] | "\\" _)* '"' }
+
+  Digit { @digit+ }
+
+  HexDigit { $[A-Fa-f] }
+
+  Fraction { "." Digit }
+
+  Boolean { "true" | "false" }
+
+  LineComment { "#" ![\n]* }
+
+  space { $[ \t\n\r]+ }
+
+  UrlProtocol { ("http" | "https") "://" }
+
+  Path { ("/" | ("/" $[a-zA-Z_\-0-9]+)+) ![ \n]* }
+
+  HttpMethod { "CONNECT" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT" | "TRACE" }
+
+  HttpVersion { "HTTP/1.0" | "HTTP/1.1" | "HTTP/2" | "HTTP/*" }
+
+  Section { "[Asserts]" | "[Captures]" | "[FormParams]" | "[MultipartFormData]" | "[QueryStringParams]" }
+}
+
+@detectDelim
