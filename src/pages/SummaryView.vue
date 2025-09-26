@@ -8,53 +8,30 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Skeleton } from '@/components/ui/skeleton'
 
 import LineChartInfoComponent from '@/components/LineChartInfoComponent.vue'
 import CounterComponent from '@/components/CounterComponent.vue'
 import MetricHistogram from '@/components/MetricHistogram.vue'
 import MetricGauge from '@/components/MetricGauge.vue'
+import TestStatusComponent from '@/components/TestStatusComponent.vue'
+import TestInfoComponent from '@/components/TestInfoComponent.vue'
 
 import { computed, ref } from 'vue'
-import { Check, Users, Clock2, Clock4, Timer } from 'lucide-vue-next'
-
-const numScenarios = computed(() => {
-  return 5
-})
+import { Users, Clock2, Clock4, Timer } from 'lucide-vue-next'
+import { DateTime } from 'luxon'
 
 const status = ref('running')
 const current_scenario_info = computed(() => {
   let vus = 50
-  let startTime = Date.now()
-  let endTime = Date.now()
-  let duration = endTime - startTime
-
-  // Helper function to format duration
-  const formatDuration = (ms: number): string => {
-    if (ms < 1000) {
-      return `${ms} ms`
-    }
-    const seconds = Math.floor(ms / 1000)
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-
-    if (minutes > 0) {
-      return `${minutes}m ${remainingSeconds}s`
-    } else {
-      return `${seconds}s`
-    }
-  }
-
-  // Helper function to format date/time
-  const formatDateTime = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleString()
-  }
+  let startTime = DateTime.now().toUTC()
+  let endTime = DateTime.now().toUTC().plus({ minutes: 1 })
+  let duration = endTime.diff(startTime)
 
   return [
-    [Users, 'Vus', vus],
-    [Clock2, 'start time:', formatDateTime(startTime)],
-    [Clock4, 'end time:', formatDateTime(endTime)],
-    [Timer, 'Duration', formatDuration(duration)]
+    { icon: Users, title: 'VUS', value: vus },
+    { icon: Clock2, title: 'StartTime:', value: startTime },
+    { icon: Clock4, title: 'EndTime:', value: endTime },
+    { icon: Timer, title: 'Duration', value: duration }
   ]
 })
 
@@ -249,7 +226,7 @@ const metrics = [
 </script>
 
 <template>
-  <div class="h-full w-full flex flex-col p-4 g gap-2">
+  <div class="w-full flex flex-col p-4 g gap-2">
     <header class="flex justify-start items-center gap-2">
       <SidebarTrigger class="ml-1 bg-secondary" />
       <div class="flex-shrink-0 font-semibold text-md mx-auto">Scenario 1</div>
@@ -272,17 +249,14 @@ const metrics = [
 
     <!-- Load Test Information Row -->
     <div class="flex items-center gap-6 text-sm mb-2">
-      <div
-        :class="[
-          'px-2 py-0.5 rounded-sm font-semibold text-sm text-green-400 capitalize  ring-2 ring-green-400',
-          status === 'running' ? 'bg-green-700' : 'bg-yellow-600'
-        ]"
-      >
-        <Check class="inline mr-2" fill="green" /> {{ status }}
-      </div>
-      <div v-for="([icon, text, value], index) in current_scenario_info" :key="index">
-        <component :is="icon" class="inline" /> {{ text }}: {{ value }}
-      </div>
+      <TestStatusComponent :status="status" />
+      <TestInfoComponent
+        v-for="({ icon, title, value }, index) in current_scenario_info"
+        :key="index"
+        :icon="icon"
+        :text="title"
+        :value="value"
+      />
     </div>
 
     <div class="flex items-center justify-center gap-4 w-full not-lg:flex-wrap">
@@ -344,10 +318,6 @@ const metrics = [
           />
         </template>
       </div>
-    </div>
-
-    <div class="flex-grow flex justify-center items-center border-1 rounded">
-      <Skeleton class="w-[100px] h-5 rounded-full" />
     </div>
   </div>
 </template>

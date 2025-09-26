@@ -18,6 +18,8 @@ import type { NodeInformation, RunState } from './app'
 import NodeInfo from './pages/NodeInfo.vue'
 import NotFound from './pages/NotFound.vue'
 import SummaryView from './pages/SummaryView.vue'
+import HistoryView from './pages/HistoryView.vue'
+import PlanView from './pages/PlanView.vue'
 
 // On first load, check system preference
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -54,9 +56,9 @@ const app = reactive<{
 const currentPage = ref(0)
 const routes: [string, Component][] = [
   ['Summary', SummaryView],
-  ['History', NotFound],
+  ['History', HistoryView],
   ['Nodes', NodeInfo],
-  ['Plan', NotFound]
+  ['Plan', PlanView]
 ]
 
 const pages = routes.map((route) => route[0])

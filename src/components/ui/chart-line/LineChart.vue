@@ -85,19 +85,6 @@ function handleLegendItemClick(d: BulletLegendItemInterface, i: number) {
       />
 
       <template v-for="(category, i) in categories" :key="category">
-        <VisLine
-          :x="(d: Data, i: number) => i"
-          :y="(d: Data) => d[category]"
-          :curve-type="curveType"
-          :color="colors[i]"
-          :attributes="{
-            [Line.selectors.line]: {
-              opacity: legendItems.find((item) => item.name === category)?.inactive
-                ? filterOpacity
-                : 1
-            }
-          }"
-        />
         <VisArea
           v-if="area?.find((item) => item === category) !== undefined"
           :x="(d: Data, i: number) => i"
@@ -113,6 +100,21 @@ function handleLegendItemClick(d: BulletLegendItemInterface, i: number) {
             }
           }"
           class="-z-10"
+        />
+
+        <VisLine
+          v-else
+          :x="(d: Data, i: number) => i"
+          :y="(d: Data) => d[category]"
+          :curve-type="curveType"
+          :color="colors[i]"
+          :attributes="{
+            [Line.selectors.line]: {
+              opacity: legendItems.find((item) => item.name === category)?.inactive
+                ? filterOpacity
+                : 1
+            }
+          }"
         />
       </template>
 
