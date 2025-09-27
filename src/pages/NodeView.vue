@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import type { NodeInformation } from '@/app'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -20,6 +20,10 @@ defineProps<{
   nodes: NodeInformation[]
 }>()
 
+const emit = defineEmits<{
+  (e: 'nodeAdded'): void
+}>()
+
 const isDialogOpen = ref(false)
 const newNodeName = ref('')
 const newNodeIp = ref('')
@@ -32,39 +36,40 @@ const openAddNodeDialog = () => {
 }
 
 const handleAddNode = async () => {
-  if (!newNodeName.value || !newNodeIp.value) {
-    alert('Please enter both node name and IP.') // Basic validation
-    return
-  }
-
   isAddingNode.value = true
   try {
-    // Simulate API call to add the node
-    console.log('Adding node:', { name: newNodeName.value, ip: newNodeIp.value })
-    // Replace with actual API endpoint call, e.g.:
-    // await fetch('/api/nodes', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ name: newNodeName.value, ip: newNodeIp.value })
-    // })
+    let resp = await fetch('/api/nodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newNodeName.value, ip: newNodeIp.value })
+    })
 
-    await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network request
+    if (!resp.ok) {
+      throw new Error(`HTTP error! status: ${resp.status}`)
+    }
+    emit('nodeAdded')
 
-    // On success, close dialog and potentially trigger a refresh of the nodes list
-    // (e.g., by emitting an event to the parent component, or refetching data)
-    console.log('Node added successfully!')
     isDialogOpen.value = false
     newNodeName.value = ''
     newNodeIp.value = ''
-    // If nodes are managed by the parent, you might emit an event:
-    // emit('nodeAdded');
   } catch (error) {
     console.error('Failed to add node:', error)
-    // Handle error, e.g., show an error message
   } finally {
     isAddingNode.value = false
   }
 }
+
+// periodical update
+function emitUpdate() {
+  emit('nodeAdded')
+  setTimeout(() => {
+    emitUpdate()
+  }, 2000)
+}
+
+onMounted(() => {
+  emitUpdate()
+})
 </script>
 
 <template>

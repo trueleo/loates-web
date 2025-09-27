@@ -1,21 +1,11 @@
 <script setup lang="ts">
 import AppSidebar from './components/AppSidebar.vue'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from './components/ui/breadcrumb'
-import { Separator } from './components/ui/separator'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from './components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from './components/ui/sidebar'
 
-import { onMounted, reactive, ref, computed, type Component } from 'vue'
-import { AppState } from './app'
-import type { NodeInformation, RunState } from './app'
+import { onMounted, reactive, ref, computed } from 'vue'
+import type { NodeInformation, RunState, Scenario } from './app'
 
-import NodeInfo from './pages/NodeInfo.vue'
+import NodeView from './pages/NodeView.vue'
 import NotFound from './pages/NotFound.vue'
 import SummaryView from './pages/SummaryView.vue'
 import HistoryView from './pages/HistoryView.vue'
@@ -37,31 +27,9 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
   }
 })
 
-// assigned on mount
-const nodeInfo = ref<NodeInformation>({ name: '', role: 'master', ip: '', status: 'running' })
-const nodes = ref<NodeInformation[]>([])
-const isMaster = ref<boolean>(false)
-
-const app = reactive<{
-  state: AppState
-  runState: RunState
-}>({
-  state: new AppState({
-    currentScenario: 0,
-    scenarios: []
-  }),
-  runState: 'startable'
-})
-
 const currentPage = ref(0)
-const routes: [string, Component][] = [
-  ['Summary', SummaryView],
-  ['History', HistoryView],
-  ['Nodes', NodeInfo],
-  ['Plan', PlanView]
-]
+const pages: string[] = ['summary', 'history', 'nodes', 'plan']
 
-const pages = routes.map((route) => route[0])
 window.addEventListener('hashchange', () => {
   let index = pages.findIndex(
     (page) => page.toLowerCase() == window.location.hash.slice(1).toLowerCase()
@@ -74,15 +42,26 @@ window.addEventListener('hashchange', () => {
 
 const currentView = computed(() => {
   if (currentPage.value < 0) {
-    window.location.hash = '#NotFound'
-    return NotFound
+    window.location.hash = '#notfound'
+    return 'notfound'
   } else {
-    window.location.hash = `#${pages[currentPage.value]}`
-    return routes[currentPage.value][1] || NotFound
+    return pages[currentPage.value]
   }
 })
 
+const nodeInfo = ref<NodeInformation>({ name: '', role: 'master', ip: '', status: 'running' })
+const nodes = ref<NodeInformation[]>([])
+const isMaster = ref<boolean>(false)
+
+const refreshNodes = async () => {
+  nodes.value = (await fetch('/api/nodes').then((res) => res.json())) as NodeInformation[]
+}
+
 onMounted(async () => {
+  currentPage.value = pages.findIndex(
+    (page) => page.toLowerCase() == window.location.hash.slice(1).toLowerCase()
+  )
+
   nodeInfo.value = (await fetch('/api/node_information').then((res) =>
     res.json()
   )) as NodeInformation
@@ -95,7 +74,11 @@ onMounted(async () => {
   <SidebarProvider>
     <AppSidebar :active-page="currentPage" />
     <SidebarInset>
-      <component :is="currentView" :nodes="nodes" />
+      <SummaryView v-if="currentView == 'summary'" />
+      <NodeView v-else-if="currentView == 'nodes'" :nodes="nodes" @node-added="refreshNodes" />
+      <PlanView v-else-if="currentView == 'plan'" />
+      <HistoryView v-else-if="currentView == 'history'" />
+      <NotFound v-else />
     </SidebarInset>
   </SidebarProvider>
 </template>

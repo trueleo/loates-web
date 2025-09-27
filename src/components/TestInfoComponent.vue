@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { defineProps, type Component, computed } from 'vue'
-import { DateTime, Duration } from 'luxon'
+import { DateTime, Duration as LuxonDuration } from 'luxon'
 
 const props = defineProps<{
   icon: Component
   text: string
-  value: DateTime | number | Duration | string | null
+  value: DateTime | number | LuxonDuration | string | null
 }>()
 
 const formattedValue = computed(() => {
@@ -16,11 +16,10 @@ const formattedValue = computed(() => {
   }
 
   if (DateTime.isDateTime(val)) {
-    // Format: Day/Month Hour:Minute (e.g., 25/10 14:30)
     return val.toFormat('dd/MM HH:mm')
   }
 
-  if (Duration.isDuration(val)) {
+  if (LuxonDuration.isDuration(val)) {
     const totalSeconds = val.as('seconds')
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = Math.floor(totalSeconds % 60) // Remaining whole seconds

@@ -1,10 +1,11 @@
-import fastify from 'fastify'
-import { NodeInformation } from './app'
+import { fastify, FastifyRequest, FastifyReply, FastifyInstance } from 'fastify'
+import { Executor, type NodeInformation } from './app'
+import type { DateTime } from 'luxon'
 
 const app = fastify({ logger: true })
 
 // Dummy data
-const nodes = [
+const nodes: NodeInformation[] = [
   {
     name: 'Aplha',
     role: 'master',
@@ -13,61 +14,61 @@ const nodes = [
   },
   {
     name: 'Beta',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
   {
     name: 'Gamma',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
   {
     name: 'Aplha',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'running'
   },
   {
     name: 'Beta',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
   {
     name: 'Gamma',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
   {
     name: 'Aplha',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'running'
   },
   {
     name: 'Beta',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
   {
     name: 'Gamma',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
   {
     name: 'Aplha',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'running'
   },
   {
     name: 'Beta',
-    role: 'master',
+    role: 'worker',
     ip: '127.0.0.1',
     status: 'idle'
   },
@@ -79,11 +80,36 @@ const nodes = [
   }
 ]
 
-const updates = [{ id: 'update1', detail: 'Sample update' }]
+const scenarioInfo: { name: string; startTime: string; executors: Executor[] } = [
+  {
+    name: 'Scenario 1',
+    startTime: '2023-01-01T00:00:00.000Z',
+    executors: [
+      {
+        type: 'Once'
+      },
+      {
+        type: 'Constant',
+        users: 100,
+        duration: {
+          secs: 10,
+          nanos: 0
+        }
+      }
+    ]
+  }
+]
 
 // All route definitions moved into a plugin
-async function apiRoutes(app) {
-  // GET /node_information
+async function apiRoutes(app: FastifyInstance) {
+  app.get('/test_information', async () => {
+    return {
+      status: 'startable',
+      scenarios: scenarioInfo,
+      currentScenario: 0
+    }
+  })
+
   app.get('/node_information', async () => {
     return {
       name: 'node1',
@@ -93,17 +119,42 @@ async function apiRoutes(app) {
     }
   })
 
-  // GET /nodes
   app.get('/nodes', async () => {
     return nodes
   })
 
-  // GET or POST /updates
+  app.post(
+    '/nodes',
+    async (
+      request: FastifyRequest<{
+        Body: {
+          name: string
+          ip: string
+        }
+      }>,
+      reply: FastifyReply
+    ) => {
+      const node_info = request.body
+      if (nodes.find((node) => node.name === node_info.name)) {
+        return reply.status(409).send({ error: 'Resource already exists' })
+      }
+
+      nodes.push({
+        name: node_info.name,
+        role: 'worker',
+        ip: node_info.ip,
+        status: 'idle'
+      })
+
+      return reply.status(200).send(nodes)
+    }
+  )
+
   app.route({
     method: ['GET', 'POST'],
     url: '/updates',
     handler: async () => {
-      return updates
+      return []
     }
   })
 

@@ -1,17 +1,46 @@
 <script setup lang="ts">
-import { defineProps } from 'vue'
-import { Check } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Check, Pause, Play } from 'lucide-vue-next'
+import type { RunState } from '@/app'
+import { Badge } from '@/components/ui/badge' // Assuming the path to Shadcn Vue Badge component
 
-const props = defineProps<{ status: string }>()
+const props = defineProps<{ status: RunState }>()
+
+const statusClassProps = computed(() => {
+  if (props.status === 'running') {
+    return {
+      bg: 'bg-emerald-600',
+      text: 'text-emerald-50',
+      hover: 'hover:bg-emerald-600/80'
+    }
+  } else {
+    return {
+      bg: 'bg-amber-500',
+      text: 'text-amber-950',
+      hover: 'hover:bg-amber-500/80'
+    }
+  }
+})
+
+const badgeClasses = computed(() => [
+  'capitalize',
+  'font-jetbrains',
+  'text-sm',
+  'rounded-md',
+  'py-2',
+  'border-0',
+  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  statusClassProps.value.bg,
+  statusClassProps.value.text,
+  statusClassProps.value.hover
+])
 </script>
 
 <template>
-  <div
-    :class="[
-      'px-2 py-0.5 rounded-sm font-semibold text-sm font-jetbrains text-green-400 capitalize ring-2 ring-green-400',
-      props.status === 'running' ? 'bg-green-700' : 'bg-yellow-600'
-    ]"
-  >
-    <Check class="inline mr-2" fill="green" /> {{ props.status }}
-  </div>
+  <Badge :class="badgeClasses">
+    <Check v-if="props.status === 'running'" />
+    <Pause v-if="props.status === 'paused'" />
+    <Play v-else />
+    {{ props.status }}
+  </Badge>
 </template>

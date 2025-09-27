@@ -32,7 +32,7 @@ export class Duration {
   }
 
   to_luxon(): LuxonDuration<true> {
-    const additionalSeconds = Math.floor(this.nanos / 1e9)
+    const additionalSeconds = this.nanos != 0 ? Math.floor(this.nanos / 1e9) : 0
     this.nanos = this.nanos % 1e9
     this.secs = this.secs + additionalSeconds
     if (this.nanos == 0 && this.secs == 0) {
@@ -76,7 +76,7 @@ export function toZeroMillisHuman(duration: Duration | LuxonDuration<true>): str
 
 type Attribute = [string, any]
 
-class Rate {
+export class Rate {
   value: number
   duration: Duration
 
@@ -91,6 +91,31 @@ class Rate {
 
   toString(): string {
     return `${this.value}/${this.duration}`
+  }
+
+  max(other: Rate): Rate {
+    const this_millis = this.duration.to_luxon().toMillis()
+    const other_millis = other.duration.to_luxon().toMillis()
+
+    const this_rate = this.value != 0 ? this.value / this_millis : 0
+    const other_rate = other.value != 0 ? other.value / other_millis : 0
+
+    if (this_rate > other_rate) {
+      return this
+    } else {
+      return other
+    }
+  }
+
+  plus(other: Rate): Rate {
+    const new_value = this.value + other.value
+    const new_duration = this.duration.add(other.duration)
+    return new Rate(new_value, new_duration)
+  }
+
+  perSeconds(): number {
+    const seconds = this.duration.to_luxon().as('seconds')
+    return this.value / seconds
   }
 }
 
@@ -114,7 +139,71 @@ export type Executor =
       stages: Array<[Rate, Duration]>
     }
 
-namespace Executor {
+export namespace Executor {
+  export function vus(value: Executor): number {
+    switch (value.type) {
+      case 'Once':
+        return 1
+      case 'Constant':
+        return value.users
+      case 'Shared':
+        return value.users
+      case 'PerUser':
+        return value.users
+      case 'ConstantArrivalRate':
+        return value.maxUsers
+      case 'RampingUser':
+        return value.stages.reduce((acc, stage) => Math.max(stage[0], acc), value.preAllocateUsers)
+      case 'RampingArrivalRate':
+        return value.maxUsers
+    }
+  }
+
+  export function rate(value: Executor): Rate | null {
+    switch (value.type) {
+      case 'Once':
+        return new Rate(1, new Duration(0, 1))
+      case 'Constant':
+        return null
+      case 'Shared':
+        return null
+      case 'PerUser':
+        return null
+      case 'ConstantArrivalRate':
+        return value.rate
+      case 'RampingUser':
+        return null
+      case 'RampingArrivalRate':
+        return value.stages.reduce(
+          (acc, stage) => stage[0].max(acc),
+          new Rate(0, new Duration(0, 0))
+        )
+    }
+  }
+
+  export function duration(value: Executor): Duration | null {
+    switch (value.type) {
+      case 'Once':
+        return new Duration(0, 1)
+      case 'Constant':
+        return value.duration
+      case 'Shared':
+        return value.duration
+      case 'PerUser':
+        return null
+      case 'ConstantArrivalRate':
+        return value.duration
+      case 'RampingUser':
+        return value.stages
+          .map((stage) => stage[1])
+          .reduce((acc, duration) => acc.add(duration), new Duration(0, 0))
+      case 'RampingArrivalRate':
+        return value.stages
+          .map((stage) => stage[1])
+          .reduce((acc, duration) => acc.add(duration), new Duration(0, 0))
+    }
+  }
+
   export function create(value: Executor): Executor {
     switch (value.type) {
       case 'Once':
@@ -347,20 +436,6 @@ export class ExecutorState {
   }
 }
 
-class Scenario {
-  name: string
-  execs: ExecutorState[]
-
-  constructor(name: string, execs: any[]) {
-    this.name = name
-    this.execs = execs.map((x) => new ExecutorState(x))
-  }
-
-  execNames(): string[] {
-    return this.execs.map((exec) => exec.config.type)
-  }
-}
-
 export class AppState {
   currentScenario: number
   scenarios: Scenario[]
@@ -453,3 +528,9 @@ export interface NodeInformation {
 }
 
 export type RunState = 'running' | 'startable' | 'paused'
+
+export type Scenario = {
+  name: string
+  startTime: DateTime
+  executors: Executor[]
+}

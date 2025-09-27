@@ -16,23 +16,45 @@ import MetricGauge from '@/components/MetricGauge.vue'
 import TestStatusComponent from '@/components/TestStatusComponent.vue'
 import TestInfoComponent from '@/components/TestInfoComponent.vue'
 
-import { computed, ref } from 'vue'
-import { Users, Clock2, Clock4, Timer } from 'lucide-vue-next'
+import { ref, computed, onMounted, type Ref } from 'vue'
 import { DateTime } from 'luxon'
 
-const status = ref('running')
-const current_scenario_info = computed(() => {
-  let vus = 50
-  let startTime = DateTime.now().toUTC()
-  let endTime = DateTime.now().toUTC().plus({ minutes: 1 })
-  let duration = endTime.diff(startTime)
+import { Executor } from '@/app'
+import { scenarioInfo } from '@/lib/utils'
+import type { RunState } from '@/app'
+import { Skeleton } from '@/components/ui/skeleton'
 
-  return [
-    { icon: Users, title: 'VUS', value: vus },
-    { icon: Clock2, title: 'StartTime:', value: startTime },
-    { icon: Clock4, title: 'EndTime:', value: endTime },
-    { icon: Timer, title: 'Duration', value: duration }
-  ]
+const status = ref('startable' as RunState)
+const scenarios: Ref<
+  {
+    name: string
+    startTime: DateTime | null
+    executors: Executor[]
+  }[]
+> = ref([])
+
+const scenarioNames = computed(() => scenarios.value.map((s) => s.name))
+const currentScenario: Ref<number | null> = ref(null)
+const currentScenarioInfo = computed(() =>
+  currentScenario.value != null ? scenarioInfo(scenarios.value[currentScenario.value]) : null
+)
+
+onMounted(() => {
+  try {
+    fetch('/api/test_information')
+      .then((response) => response.json())
+      .then((data) => {
+        status.value = data.status
+        scenarios.value = data.scenarios.map((scenario: any) => ({
+          name: scenario.name,
+          startTime: DateTime.fromISO(scenario.startTime),
+          executors: scenario.executors.map((executor: Executor) => Executor.create(executor))
+        }))
+        currentScenario.value = data.currentScenario
+      })
+  } catch (error) {
+    console.error('Error initializing scenarios:', error)
+  }
 })
 
 const infoRow1 = [
@@ -226,17 +248,24 @@ const metrics = [
 </script>
 
 <template>
-  <div class="w-full flex flex-col p-4 g gap-2">
+  <div class="w-full min-h-full flex flex-col p-4 g gap-2">
     <header class="flex justify-start items-center gap-2">
       <SidebarTrigger class="ml-1 bg-secondary" />
-      <div class="flex-shrink-0 font-semibold text-md mx-auto">Scenario 1</div>
-      <Select>
+      <div class="flex-shrink-0 font-semibold text-md mx-auto">
+        {{ currentScenario != null && scenarios.length > 0 ? scenarios[currentScenario].name : '' }}
+      </div>
+      <Select
+        v-if="currentScenario != null && scenarios.length > 0"
+        :default-value="scenarioNames[currentScenario]"
+        v-model:model-value="currentScenario"
+      >
         <SelectTrigger class="w-[280px]">
           <SelectValue placeholder="Scenario" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="scenario1">Scenario 1</SelectItem>
-          <SelectItem value="scenario2">Scenario 2</SelectItem>
+          <SelectItem v-for="(item, index) in scenarioNames" :key="index" :value="index">{{
+            item
+          }}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -247,77 +276,91 @@ const metrics = [
       </div>
     </header>
 
-    <!-- Load Test Information Row -->
-    <div class="flex items-center gap-6 text-sm mb-2">
-      <TestStatusComponent :status="status" />
-      <TestInfoComponent
-        v-for="({ icon, title, value }, index) in current_scenario_info"
-        :key="index"
-        :icon="icon"
-        :text="title"
-        :value="value"
-      />
-    </div>
-
-    <div class="flex items-center justify-center gap-4 w-full not-lg:flex-wrap">
-      <LineChartInfoComponent
-        v-for="(item, index) in infoRow1"
-        :key="index"
-        :overlay="item.title"
-        :data="item.data"
-        :index="'x'"
-        :category="['y']"
-        :area="['y']"
-        class="flex-grow"
-      />
-    </div>
-
-    <div class="flex items-center justify-center gap-4 w-full">
-      <LineChartInfoComponent
-        :overlay="overviewPlot.title"
-        :data="overviewPlot.data"
-        :index="'time'"
-        :category="['vus', 'errorRate', 'responseTime']"
-        :area="['vus']"
-        showGridLine
-        showLegend
-        class="flex-grow h-52 p-4"
-      />
-    </div>
-    <div class="flex-grow flex flex-col justify-start items-start border-1 rounded gap-2 p-2">
-      <div class="inline-flex flex-wrap gap-2">
-        <CounterComponent
-          v-for="(item, index) in counters"
+    <template v-if="currentScenarioInfo != null">
+      <div class="flex items-center gap-6 text-sm mb-2">
+        <TestStatusComponent :status="status" />
+        <TestInfoComponent
+          v-for="({ icon, title, value }, index) in currentScenarioInfo"
           :key="index"
-          :tags="item.tags"
-          :count="item.value"
+          :icon="icon"
+          :text="title"
+          :value="value"
         />
       </div>
-      <div class="flex flex-wrap gap-x-2 gap-y-4 w-full">
-        <template v-for="(item, index) in metrics" :key="index">
-          <MetricHistogram
-            v-if="item.type === 'histogram'"
-            :tags="item.tags"
-            :data="item.value"
-            :category="['value']"
-            :index="'value'"
-            showAxisX
-            showAxisY
-            class="h-44 w-xl"
-          />
-          <MetricGauge
-            v-else-if="item.type === 'gauge'"
-            :tags="item.tags"
-            :data="item.value"
-            :index="'time'"
-            :category="['value']"
-            :area="['value']"
-            showAxisX
-            showAxisY
-            class="h-44 w-xl"
-          />
-        </template>
+    </template>
+
+    <template v-if="currentScenario">
+      <div class="flex items-center justify-center gap-4 w-full not-lg:flex-wrap">
+        <LineChartInfoComponent
+          v-for="(item, index) in infoRow1"
+          :key="index"
+          :overlay="item.title"
+          :data="item.data"
+          :index="'x'"
+          :category="['y']"
+          :area="['y']"
+          class="flex-grow"
+        />
       </div>
+
+      <div class="flex items-center justify-center gap-4 w-full">
+        <LineChartInfoComponent
+          :overlay="overviewPlot.title"
+          :data="overviewPlot.data"
+          :index="'time'"
+          :category="['vus', 'errorRate', 'responseTime']"
+          :area="['vus']"
+          showGridLine
+          showLegend
+          class="flex-grow h-52 p-4"
+        />
+      </div>
+      <div class="flex-grow flex flex-col justify-start items-start border-1 rounded gap-2 p-2">
+        <div class="inline-flex flex-wrap gap-2">
+          <CounterComponent
+            v-for="(item, index) in counters"
+            :key="index"
+            :tags="item.tags"
+            :count="item.value"
+          />
+        </div>
+        <div class="flex flex-wrap gap-x-2 gap-y-4 w-full">
+          <template v-for="(item, index) in metrics" :key="index">
+            <MetricHistogram
+              v-if="item.type === 'histogram'"
+              :tags="item.tags"
+              :data="item.value"
+              :category="['value']"
+              :index="'value'"
+              showAxisX
+              showAxisY
+              class="h-44 w-xl"
+            />
+            <MetricGauge
+              v-else-if="item.type === 'gauge'"
+              :tags="item.tags"
+              :data="item.value"
+              :index="'time'"
+              :category="['value']"
+              :area="['value']"
+              showAxisX
+              showAxisY
+              class="h-44 w-xl"
+            />
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <div
+      v-else
+      class="flex flex-grow mt-2 justify-start flex-col items-center border-1 rounded gap-2 p-2"
+    >
+      <div class="w-full flex justify-stretch items-center h-44 gap-2">
+        <Skeleton class="flex-1 h-44" v-for="(_, index) in 4" :key="index" />
+      </div>
+      <Skeleton class="h-44 w-full" />
+      <Skeleton class="h-52 w-full" />
     </div>
   </div>
 </template>
