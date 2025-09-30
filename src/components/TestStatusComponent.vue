@@ -40,7 +40,7 @@ const badgeClasses = computed(() => [
   <Badge :class="badgeClasses">
     <Check v-if="props.status === 'running'" />
     <Pause v-if="props.status === 'paused'" />
-    <Play v-else />
+    <Play v-if="props.status === 'startable'" />
     {{ props.status }}
   </Badge>
 </template>

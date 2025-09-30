@@ -53,6 +53,9 @@ importers:
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
+      dictionaryjs:
+        specifier: ^1.0.10
+        version: 1.0.10
       embla-carousel-vue:
         specifier: ^8.6.0
         version: 8.6.0(vue@3.5.21(typescript@5.4.5))
@@ -1779,6 +1782,9 @@ packages:
   detect-libc@2.1.0:
     resolution: {integrity: sha512-vEtk+OcP7VBRtQZ1EJ3bdgzSfBjgnEalLTp5zjJrS+2Z1w2KZly4SBdac/WDU3hhsNAZ9E8SC96ME4Ey8MZ7cg==}
     engines: {node: '>=8'}
+
+  dictionaryjs@1.0.10:
+    resolution: {integrity: sha512-t2pQZT+4F+4HgY88TYq/9VkoI8PCZ4AY2R2by5DpKsOYmHle/1zxkvyEAtBUMERBvILZ3IN/9tvRI9AGzPgfvw==}
 
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
@@ -4746,6 +4752,8 @@ snapshots:
   dequal@2.0.3: {}
 
   detect-libc@2.1.0: {}
+
+  dictionaryjs@1.0.10: {}
 
   dir-glob@3.0.1:
     dependencies:
