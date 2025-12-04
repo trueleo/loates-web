@@ -3,12 +3,14 @@ import type { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify'
 import {
   Duration,
   Executor,
+  Rate,
   type CommonMessage,
   type ErrorMessage,
   type ExecutorStateFields,
   type Metric,
   type NodeInformation,
-  type RunState
+  type RunState,
+  type TestRunInfo
 } from './app'
 import { DateTime } from 'luxon'
 
@@ -126,7 +128,6 @@ const scenarioInfo: { name: string; startTime: string; running: boolean; executo
   ]
 
 let runStatus: RunState = 'startable'
-let updatesSent = 0
 
 const updates: Record<string, ((ExecutorStateFields | Metric | ErrorMessage) & CommonMessage)[]> =
   {}
@@ -209,6 +210,65 @@ updates['Scenario 1'] = [
 
 updates['Scenario 2'] = []
 
+const pastRuns: TestRunInfo[] = [
+  {
+    runId: '01K6MAZVW3HTR53KV3V6KY3QDZ',
+    startTime: DateTime.now(),
+    endTime: DateTime.now(),
+    duration: Duration.fromObject({ seconds: 10 }),
+    status: 'completed',
+    scenario: [
+      {
+        name: 'Scenario 1',
+        executors: [
+          {
+            type: 'ConstantArrivalRate',
+            duration: Duration.fromObject({ seconds: 10 }),
+            maxUsers: 100,
+            preAllocateUsers: 50,
+            rate: new Rate(50, Duration.fromObject({ seconds: 1 }))
+          } as Executor,
+          {
+            type: 'Constant',
+            duration: Duration.fromObject({ seconds: 10 }),
+            users: 100
+          } as Executor
+        ]
+      },
+      {
+        name: 'Scenario 2',
+        executors: [
+          {
+            type: 'Constant',
+            duration: Duration.fromObject({ seconds: 10 }),
+            users: 100
+          } as Executor
+        ]
+      }
+    ]
+  },
+  {
+    runId: '01K6MB235VRM9ZQ2S80XBBCA3K',
+    startTime: DateTime.now(),
+    endTime: DateTime.now(),
+    duration: Duration.fromObject({ seconds: 10 }),
+    status: 'stopped',
+    scenario: [
+      {
+        name: 'Scenario 1',
+        executors: [
+          {
+            type: 'PerUser',
+            duration: Duration.fromObject({ seconds: 10 }),
+            iterations: 100,
+            users: 100
+          } as Executor
+        ]
+      }
+    ]
+  }
+]
+
 // All route definitions moved into a plugin
 async function apiRoutes(app: FastifyInstance) {
   app.get('/test_information', async () => {
@@ -260,13 +320,33 @@ async function apiRoutes(app: FastifyInstance) {
     ) => {
       const scenario = request.params.scenario
       const timestamp = Number(request.headers['x-timestamp'])
-      console.log(scenario, timestamp)
       if (timestamp === undefined) {
         return reply.status(400).send({ error: 'Invalid timestamp' })
       }
 
       const update = updates[scenario].filter((update) => update.timestamp == timestamp)
-      updatesSent = Math.max(updatesSent, timestamp)
+
+      return reply.status(200).send(update)
+    }
+  })
+
+  app.route({
+    method: ['GET'],
+    url: '/history',
+    handler: async (
+      request: FastifyRequest<{ Querystring: { start: string; end: string; timezone: string } }>,
+      reply: FastifyReply
+    ) => {
+      const startDateTime = DateTime.fromSQL(request.query.start, {
+        zone: request.query.timezone
+      })
+      const endDateTime = DateTime.fromSQL(request.query.end, { zone: request.query.timezone })
+      if (startDateTime === undefined || endDateTime === undefined) {
+        return reply.status(200).send([])
+      }
+      const update = pastRuns.filter(
+        (run) => run.startTime >= startDateTime && run.startTime <= endDateTime
+      )
 
       return reply.status(200).send(update)
     }

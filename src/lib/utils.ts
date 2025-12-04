@@ -3,7 +3,7 @@ import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { ComponentIcon, Users, Clock2, Clock4, Timer, TrendingUp } from 'lucide-vue-next'
 import { Duration, Executor, Rate } from '@/app'
-import type { DateTime } from 'luxon'
+import { DateTime } from 'luxon'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

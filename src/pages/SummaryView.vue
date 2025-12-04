@@ -18,9 +18,14 @@ import TestInfoComponent from '@/components/TestInfoComponent.vue'
 
 import { ref, computed, onMounted, type Ref, reactive, onUnmounted, type Reactive } from 'vue'
 import { DateTime, Duration as LuxonDuration } from 'luxon'
-import { Dictionary } from 'dictionaryjs'
 
-import { Executor, ExecutorState, defaultMetric } from '@/app'
+import {
+  Executor,
+  ExecutorState,
+  defaultMetric,
+  patchExecutorStateFields,
+  patchMetric
+} from '@/app'
 import { scenarioInfo } from '@/lib/utils'
 import type { RunState, CommonMessage, ExecutorStateFields, ErrorMessage, Metric } from '@/app'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -64,8 +69,6 @@ const scenarioForView: Ref<string | null> = computed({
 })
 
 const selectedScenarioInfo = computed(() => {
-  console.log('Selected scenario info:', scenarioForView.value)
-
   return scenarioForView.value != null
     ? scenarioInfo({
         name: scenarioForView.value,
@@ -96,12 +99,13 @@ async function testInfo() {
           this_scenarios.length === data_scenarios.length &&
           this_scenarios.every((scenario, index) => scenario === data_scenarios[index])
         ) {
-          console.log('Scenarios are up to date')
           return
         }
 
         data.scenarios.forEach((scenario) => {
-          scenarios.value[scenario.name] = scenario.executors.map((exec) => Executor.create(exec))
+          scenarios.value[scenario.name] = scenario.executors.map((exec) =>
+            Executor.fromObject(exec)
+          )
         })
         data.scenarios.forEach((scenario) => {
           scenarioStates[scenario.name] = {
@@ -156,10 +160,32 @@ async function pollExecutorUpdates() {
         }
       })
 
-      const data: (CommonMessage & (ErrorMessage | ExecutorStateFields | Metric))[] =
+      const _data: (CommonMessage & (ErrorMessage | ExecutorStateFields | Metric))[] =
         await response.json()
+
+      const data = _data.map((item) => {
+        if (item.type == 'executor') {
+          return patchExecutorStateFields(item) as ExecutorStateFields & CommonMessage
+        } else if (
+          [
+            'vus',
+            'throughput',
+            'rps',
+            'success',
+            'error',
+            'counter',
+            'responseTime',
+            'gauge',
+            'histogram'
+          ].some((type) => type === item.type)
+        ) {
+          return patchMetric(item) as Metric & CommonMessage
+        }
+        return item as ErrorMessage & CommonMessage
+      })
+
       for (const item of data) {
-        if (item.type === 'Error' || item.type === 'TerminationError') {
+        if (item.type === 'generalError' || item.type === 'terminatedError') {
           console.log(item)
         } else {
           const executorId: number = item.executorId
@@ -232,54 +258,84 @@ function timeseries(
   data: { name: string; values: Metric[] }[],
   defaultMetric: () => Metric
 ): TimeseriesRow<Metric>[] {
-  let map = new Dictionary<number, TimeseriesRow<Metric>>()
-  data.forEach((item) => {
+  let map = new Map<number, TimeseriesRow<Metric>>()
+  let doNumericSuffix = data.some((d) => {
+    data.filter((x) => x.name === d.name).length > 1
+  })
+
+  // Populate the map with initial values from the input data
+  data.forEach((item, index) => {
     item.values.forEach((value) => {
-      let time = value.time.toMillis()
-      // @ts-ignore
-      const row = map.getDefault(time, { time: time })
-      row[item.name] = value
+      const time = value.time.toMillis()
+      let row = map.get(time)
+      if (!row) {
+        // If a row for this timestamp doesn't exist, create it.
+        // Cast to TimeseriesRow<Metric> to ensure type compatibility for subsequent assignments.
+        row = { time: time } as TimeseriesRow<Metric>
+        map.set(time, row)
+      }
+
+      if (doNumericSuffix) {
+        row[item.name + index.toString()] = value
+      } else {
+        row[item.name] = value
+      }
     })
   })
 
+  // Convert the map values to an array and sort them by time
   let times: TimeseriesRow<Metric>[] = Array.from(map.values())
   times.sort((a, b) => a.time - b.time)
 
-  const keys = data.map((item) => item.name)
-  if (times.length === 0) return []
+  // Extract all unique scenario names (keys) from the input data
+  const keys = data.map((item, index) => {
+    if (doNumericSuffix) {
+      return item.name + index.toString()
+    } else {
+      return item.name
+    }
+  })
+  if (times.length === 0) {
+    // If no timeseries data, return an empty array
+    return []
+  }
 
+  // Ensure the first row has all keys, filling with a default metric if missing
+  const firstRow = times[0]
   for (const key of keys) {
-    if (!Object.keys(times[0]).includes(key)) {
-      times[0][key] = defaultMetric()
+    if (!(key in firstRow)) {
+      firstRow[key] = defaultMetric()
     }
   }
 
+  // For subsequent rows, fill in any missing metric values with the value from the previous row
   for (let i = 1; i < times.length; i++) {
+    const currentRow = times[i]
+    const previousRow = times[i - 1]
     for (const key of keys) {
-      if (!Object.keys(times[i]).includes(key)) {
-        times[i][key] = times[i - 1][key]
+      if (!(key in currentRow)) {
+        currentRow[key] = previousRow[key]
       }
     }
   }
+
+  // @ts-ignore
+  times.unshift({
+    time: times[0].time - 1,
+    ...keys.reduce((acc, key) => ({ ...acc, [key]: defaultMetric() }), {})
+  })
 
   return times
 }
 
 function mapMetric<T>(data: TimeseriesRow<Metric>[], getter: (m: Metric) => T): TimeseriesRow<T>[] {
-  if (data.length === 0) {
-    return []
-  }
-  let keys = Object.keys(data[0]).filter((key) => key !== 'time')
   return data.map((row) => {
-    // @ts-ignore
-    let res: TimeseriesRow<T> = { time: row.time }
-    keys.forEach((key) => {
-      if (!Object.keys(row).includes(key)) {
-        res[key] = getter(row[key])
-      }
-    })
-    return res
-  })
+    for (const key of Object.keys(row).filter((key) => key !== 'time')) {
+      // @ts-ignore
+      row[key] = getter(row[key])
+    }
+    return row
+  }) as TimeseriesRow<T>[]
 }
 
 const infoVus = computed(() => {
@@ -318,13 +374,13 @@ const infoThroughput = computed(() => {
     })),
     () => defaultMetric('throughput')
   )
-  const mappedData = mapMetric(data, (m) =>
+  const _mappedData = mapMetric(data, (m) =>
     m.type === 'throughput' ? m.value : { upload: 0, download: 0 }
   )
 
-  mappedData.map((row) =>
+  const mappedData = _mappedData.map((row) =>
     Object.entries(row)
-      .filter(([key]) => key == 'time')
+      .filter(([key]) => key !== 'time')
       .reduce(
         (acc, [, value]: [string, any]) => {
           acc.upload += value.upload
@@ -336,6 +392,19 @@ const infoThroughput = computed(() => {
   )
 
   return mappedData
+})
+
+const infoResponseTime = computed(() => {
+  if (scenarioForView.value === null) return []
+  let scenario = scenarioForView.value
+  const data = timeseries(
+    scenarioStates[scenario].executorStates.map((item) => ({
+      name: item.executor.type,
+      values: item.getMetrics('responseTime')
+    })),
+    () => defaultMetric('responseTime')
+  )
+  return mapMetric(data, (m) => (m.type === 'responseTime' ? m.value.to_luxon().toMillis() : 0))
 })
 
 const infoSuccess = computed(() => {
@@ -374,116 +443,177 @@ const info1 = ref([
   { title: 'Error', data: infoError }
 ])
 
-const overviewPlot = {
-  title: 'Performance',
-  data: [
-    { time: 0, vus: 1000, errorRate: 0, responseTime: 100 },
-    { time: 1, vus: 1000, errorRate: 0, responseTime: 100 },
-    { time: 2, vus: 99, errorRate: 1, responseTime: 140 },
-    { time: 3, vus: 98, errorRate: 2, responseTime: 150 },
-    { time: 4, vus: 97, errorRate: 3, responseTime: 160 },
-    { time: 5, vus: 95, errorRate: 5, responseTime: 100 },
-    { time: 6, vus: 96, errorRate: 4, responseTime: 100 },
-    { time: 7, vus: 96, errorRate: 4, responseTime: 100 },
-    { time: 8, vus: 95, errorRate: 5, responseTime: 100 },
-    { time: 9, vus: 94, errorRate: 6, responseTime: 100 }
-  ]
+function mergeMetrics(data: { metric: string; values: TimeseriesRow<any>[] }[]) {
+  let map = new Map<number, TimeseriesRow<any>>()
+
+  data.forEach((item) => {
+    item.values.forEach((value) => {
+      const time = value.time
+      let row = map.get(time)
+      if (!row) {
+        row = { time: time } as TimeseriesRow<any>
+        map.set(time, row)
+      }
+      Object.entries(value)
+        .filter(([key]) => key !== 'time')
+        .forEach(([key, value]) => {
+          row[item.metric + '_' + key] = value
+        })
+    })
+  })
+
+  let times: TimeseriesRow<any>[] = Array.from(map.values())
+  times.sort((a, b) => a.time - b.time)
+
+  const keys: string[] = []
+  times.forEach((row) => {
+    Object.keys(row)
+      .filter((key) => key !== 'time')
+      .forEach((key) => {
+        if (!keys.includes(key)) {
+          keys.push(key)
+        }
+      })
+  })
+
+  if (times.length === 0) {
+    return []
+  }
+
+  const firstRow = times[0]
+  for (const key of keys) {
+    if (!(key in firstRow)) {
+      firstRow[key] = 0
+    }
+  }
+
+  for (let i = 1; i < times.length; i++) {
+    const currentRow = times[i]
+    const previousRow = times[i - 1]
+    for (const key of keys) {
+      if (!(key in currentRow)) {
+        currentRow[key] = previousRow[key]
+      }
+    }
+  }
+
+  return times
 }
 
-const counters = [
-  { tags: ['PUT', 'example.com'], value: 10 },
-  { tags: ['GET', 'example.com'], value: 10 },
-  { tags: ['POST', 'example.com'], value: 20 }
-]
-
-const metrics = [
-  {
-    tags: ['PUT', 'example.com'],
-    type: 'histogram',
-    value: [
-      {
-        name: 'p99',
-        value: 90
-      },
-      {
-        name: 'p90',
-        value: 80
-      },
-      {
-        name: 'p75',
-        value: 70
-      },
-      {
-        name: 'p50',
-        value: 60
-      }
-    ]
-  },
-  {
-    tags: ['GET', 'example.com'],
-    type: 'histogram',
-    value: [
-      {
-        name: 'p99',
-        value: 90
-      },
-      {
-        name: 'p90',
-        value: 80
-      },
-      {
-        name: 'p75',
-        value: 70
-      },
-      {
-        name: 'p50',
-        value: 60
-      }
-    ]
-  },
-  {
-    tags: ['GET', 'example.com'],
-    type: 'gauge',
-    value: [
-      {
-        time: 1,
-        value: 100
-      },
-      {
-        time: 2,
-        value: 99
-      },
-      {
-        time: 3,
-        value: 98
-      },
-      {
-        time: 4,
-        value: 97
-      },
-      {
-        time: 5,
-        value: 95
-      },
-      {
-        time: 6,
-        value: 96
-      },
-      {
-        time: 7,
-        value: 96
-      },
-      {
-        time: 8,
-        value: 95
-      },
-      {
-        time: 9,
-        value: 94
-      }
-    ]
+const overviewPlot = computed(() => {
+  return {
+    title: 'Performance',
+    data: mergeMetrics([
+      { metric: 'vus', values: infoVus.value },
+      { metric: 'responseTime', values: infoResponseTime.value },
+      { metric: 'error', values: infoError.value }
+    ])
   }
-]
+})
+
+const counters = computed(() => {
+  if (scenarioForView.value === null) return []
+  let scenario = scenarioForView.value
+  const data = scenarioStates[scenario].executorStates.map((item) => ({
+    name: item.executor.type,
+    values: item.getCounters()
+  }))
+
+  const doNumericSuffix = data.some((d) => {
+    data.filter((item) => item.name === d.name).length > 1
+  })
+
+  if (doNumericSuffix) {
+    return data.map((item, index) => {
+      item.name += '_' + index
+      return item
+    })
+  } else {
+    return data
+  }
+})
+
+const histograms = computed(() => {
+  if (scenarioForView.value === null) return []
+  let scenario = scenarioForView.value
+  const data = scenarioStates[scenario].executorStates.map((item) => ({
+    name: item.executor.type,
+    values: item.getHistograms().map((histogram) => ({
+      tags: histogram.tags,
+      value: [
+        {
+          name: 'p99',
+          value: histogram.value[3]
+        },
+        {
+          name: 'p90',
+          value: histogram.value[2]
+        },
+        {
+          name: 'p75',
+          value: histogram.value[1]
+        },
+        {
+          name: 'p50',
+          value: histogram.value[0]
+        }
+      ]
+    }))
+  }))
+
+  const doNumericSuffix = data.some((d) => {
+    data.filter((item) => item.name === d.name).length > 1
+  })
+
+  if (doNumericSuffix) {
+    return data.map((item, index) => {
+      item.name += '_' + index
+      return item
+    })
+  } else {
+    return data
+  }
+})
+
+const gauges = computed(() => {
+  if (scenarioForView.value === null) return []
+  let scenario = scenarioForView.value
+  const data = scenarioStates[scenario].executorStates.map((item) => ({
+    name: item.executor.type,
+    values: item.getGauges()
+  }))
+
+  const doNumericSuffix = data.some((d) => {
+    data.filter((item) => item.name === d.name).length > 1
+  })
+
+  const flattened = data.flatMap((item, index) => {
+    let name = item.name
+    if (doNumericSuffix) {
+      name += '_' + index
+    }
+
+    function assertMetricIsGauge(
+      metric: Metric[]
+    ): asserts metric is Extract<Metric, { type: 'gauge' }>[] {
+      if (metric.some((m) => m.type != 'gauge'))
+        throw new Error(`Expected gauge metric, got ${metric}`)
+    }
+
+    return item.values.map((value: Metric[]) => {
+      assertMetricIsGauge(value)
+      return value.map((metric) => {
+        const thisName = [name, ...metric.value.tags]
+        return {
+          tags: thisName,
+          value: metric.value.value
+        }
+      })
+    })
+  })
+
+  return flattened
+})
 </script>
 
 <template>
@@ -539,8 +669,19 @@ const metrics = [
           :overlay="item.title"
           :data="item.data"
           :index="'time'"
-          :category="item.data[0] ? Object.keys(item.data[0]).filter((key) => key !== 'time') : []"
-          :area="item.data[0] ? Object.keys(item.data[0]).filter((key) => key !== 'time') : []"
+          :category="
+            item.data.length ? Object.keys(item.data[0]).filter((key) => key !== 'time') : []
+          "
+          :area="item.data.length ? Object.keys(item.data[0]).filter((key) => key !== 'time') : []"
+          :xFormatter="
+            (tick: number | Date, i, ticks) => {
+              if (tick instanceof Date) {
+                return tick.toLocaleString()
+              } else {
+                return DateTime.fromMillis(tick).toLocaleString(DateTime.DATETIME_SHORT)
+              }
+            }
+          "
           class="flex-grow"
         />
       </div>
@@ -550,8 +691,25 @@ const metrics = [
           :overlay="overviewPlot.title"
           :data="overviewPlot.data"
           :index="'time'"
-          :category="['vus', 'errorRate', 'responseTime']"
-          :area="['vus']"
+          :category="
+            overviewPlot.data.length
+              ? Object.keys(overviewPlot.data[0]).filter((key) => key !== 'time')
+              : []
+          "
+          :area="
+            overviewPlot.data.length
+              ? Object.keys(overviewPlot.data[0]).filter((key) => key !== 'time')
+              : []
+          "
+          :xFormatter="
+            (tick: number | Date, i, ticks) => {
+              if (tick instanceof Date) {
+                return tick.toLocaleString()
+              } else {
+                return DateTime.fromMillis(tick).toLocaleString(DateTime.DATETIME_SHORT)
+              }
+            }
+          "
           showGridLine
           showLegend
           class="flex-grow h-52 p-4"
@@ -559,32 +717,37 @@ const metrics = [
       </div>
       <div class="flex-grow flex flex-col justify-start items-start border-1 rounded gap-2 p-2">
         <div class="inline-flex flex-wrap gap-2">
-          <CounterComponent
-            v-for="(item, index) in counters"
-            :key="index"
-            :tags="item.tags"
-            :count="item.value"
-          />
+          <template v-for="executor in counters">
+            <CounterComponent
+              v-for="(item, index) in executor.values"
+              :key="index"
+              :tags="[executor.name, ...item.tags]"
+              :count="item.value"
+            />
+          </template>
         </div>
         <div class="flex flex-wrap gap-x-2 gap-y-4 w-full">
-          <template v-for="(item, index) in metrics" :key="index">
-            <MetricHistogram
-              v-if="item.type === 'histogram'"
-              :tags="item.tags"
-              :data="item.value"
+          <template v-for="(item, index) in gauges" :key="index">
+            <MetricGauge
+              :tags="item.length ? item[0].tags : []"
+              :data="item"
+              :index="'time'"
               :category="['value']"
-              :index="'value'"
+              :area="['value']"
               showAxisX
               showAxisY
               class="h-44 w-xl"
             />
-            <MetricGauge
-              v-else-if="item.type === 'gauge'"
-              :tags="item.tags"
-              :data="item.value"
-              :index="'time'"
+          </template>
+
+          <template v-for="(item, index) in histograms" :key="index">
+            <MetricHistogram
+              v-for="(histogram, index) in item.values"
+              :key="index"
+              :tags="[item.name, ...histogram.tags]"
+              :data="histogram.value"
               :category="['value']"
-              :area="['value']"
+              :index="'value'"
               showAxisX
               showAxisY
               class="h-44 w-xl"

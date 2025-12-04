@@ -6,7 +6,7 @@ import { Axis, CurveType, Line, Area } from '@unovis/ts'
 
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
 import { useMounted } from '@vueuse/core'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { cn } from '@/lib/utils'
 import { ChartCrosshair, ChartLegend, defaultColors } from '@/components/ui/chart'
 
@@ -59,6 +59,17 @@ const legendItems = ref<BulletLegendItemInterface[]>(
   }))
 )
 
+watch(
+  () => props.categories,
+  (value) => {
+    legendItems.value = value.map((category, i) => ({
+      name: category,
+      color: colors.value[i],
+      inactive: false
+    }))
+  }
+)
+
 const isMounted = useMounted()
 
 function handleLegendItemClick(d: BulletLegendItemInterface, i: number) {
@@ -82,6 +93,7 @@ function handleLegendItemClick(d: BulletLegendItemInterface, i: number) {
         :items="legendItems"
         :index="index"
         :custom-tooltip="customTooltip"
+        :formatter="xFormatter"
       />
 
       <template v-for="(category, i) in categories" :key="category">

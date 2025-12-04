@@ -12,6 +12,7 @@ const props = defineProps<{
   showAxisY?: boolean
   showLegend?: boolean
   showGridLine?: boolean
+  xFormatter?: (tick: number | Date, i: number, ticks: number[] | Date[]) => string
 }>()
 </script>
 
@@ -36,6 +37,7 @@ const props = defineProps<{
         :showGridLine="showGridLine"
         :curveType="CurveType.MonotoneX"
         :area="area"
+        :xFormatter="xFormatter"
       />
     </div>
   </div>

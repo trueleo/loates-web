@@ -1,5 +1,4 @@
 import { DateTime, Duration as LuxonDuration } from 'luxon'
-import { Dictionary } from 'dictionaryjs'
 
 export class Duration {
   secs: number
@@ -43,6 +42,17 @@ export class Duration {
       seconds: this.secs != 0 ? this.secs : undefined,
       milliseconds: this.nanos != 0 ? this.nanos / 1e6 : undefined
     }).rescale()
+  }
+
+  static fromObject(obj: {
+    seconds?: number
+    nanoseconds?: number
+    secs?: number
+    nanos?: number
+  }): Duration {
+    const secs = obj.seconds ?? obj.secs ?? 0
+    const nanos = obj.nanoseconds ?? obj.nanos ?? 0
+    return new Duration(secs, nanos)
   }
 }
 
@@ -203,7 +213,7 @@ export namespace Executor {
     }
   }
 
-  export function create(value: Executor): Executor {
+  export function fromObject(value: Executor): Executor {
     switch (value.type) {
       case 'Once':
         return value
@@ -264,6 +274,46 @@ export type Metric = {
   }
 }[MetricKey]
 
+export function patchMetric(m: any): Metric {
+  m.time = DateTime.fromISO(m.time)
+  switch (m.type) {
+    case 'vus':
+    case 'throughput':
+    case 'rps':
+    case 'success':
+    case 'error':
+    case 'counter':
+      break
+    case 'responseTime':
+      m.value = new Duration(m.value.secs, m.value.nanos)
+      break
+    case 'gauge':
+      if (
+        typeof m.value.value === 'object' &&
+        m.value.value !== null &&
+        !(m.value.value instanceof Duration)
+      ) {
+        const rawDuration = m.value.value as unknown as { secs: number; nanos: number }
+        m.value.value = new Duration(rawDuration.secs, rawDuration.nanos)
+      }
+      break
+    case 'histogram':
+      if (
+        Array.isArray(m.value.value) &&
+        m.value.value.length > 0 &&
+        typeof m.value.value[0] === 'object' &&
+        m.value.value[0] !== null &&
+        !(m.value.value[0] instanceof Duration)
+      ) {
+        m.value.value = (m.value.value as unknown as Array<{ secs: number; nanos: number }>).map(
+          (d) => new Duration(d.secs, d.nanos)
+        ) as [Duration, Duration, Duration, Duration]
+      }
+      break
+  }
+  return m
+}
+
 export function defaultMetric(key: MetricKey): Metric {
   switch (key) {
     case 'vus':
@@ -288,7 +338,7 @@ export function defaultMetric(key: MetricKey): Metric {
 }
 
 export interface ErrorMessage {
-  type: 'error' | 'terminatedError'
+  type: 'generalError' | 'terminatedError'
   err: string
 }
 
@@ -300,44 +350,93 @@ export interface CommonMessage {
 
 export interface ExecutorStateFields {
   ended: boolean
-  timestamp: number
   startTime?: DateTime
   totalDuration?: Duration
   stage?: number
   stageDuration?: Duration
 }
 
+export function patchExecutorStateFields(m: any): ExecutorStateFields {
+  return {
+    ...m,
+    startTime: m.startTime ? DateTime.fromISO(m.startTime) : undefined,
+    totalDuration: m.totalDuration ? Duration.fromObject(m.totalDuration) : undefined,
+    stageDuration: m.stageDuration ? Duration.fromObject(m.stageDuration) : undefined
+  }
+}
+
 export class ExecutorState implements ExecutorStateFields {
   executor: Executor
-  timestamp: number
   ended: boolean
   startTime?: DateTime
   totalDuration?: Duration
   stage?: number
   stageDuration?: Duration
-  metrics: Dictionary<(MetricKey | string)[], Metric[]>
+  metrics: Map<string, Metric[]>
 
   constructor(executor: Executor) {
     this.executor = executor
-    this.timestamp = 0
     this.ended = false
     this.startTime = undefined
     this.totalDuration = undefined
     this.stage = undefined
     this.stageDuration = undefined
-    this.metrics = new Dictionary<(MetricKey | string)[], Metric[]>()
+    this.metrics = new Map<string, Metric[]>()
+  }
+
+  private static makeKey(tags: (MetricKey | string)[]): string {
+    return JSON.stringify(tags)
   }
 
   getMetrics(key: MetricKey | string[]): Metric[] {
     if (Array.isArray(key)) {
-      return this.metrics.get(key) || []
+      return this.metrics.get(ExecutorState.makeKey(key)) || []
     }
-    return this.metrics.get([key]) || []
+    return this.metrics.get(ExecutorState.makeKey([key])) || []
+  }
+
+  getCounters(): { tags: string[]; value: number }[] {
+    const res: { tags: string[]; value: number }[] = []
+
+    for (const metrics of this.metrics.values()) {
+      if (metrics.length > 0 && metrics[0].type === 'counter') {
+        const metric = metrics[metrics.length - 1]
+        if (metric.type === 'counter') {
+          res.push(metric.value)
+        }
+      }
+    }
+
+    return res
+  }
+
+  getHistograms(): { tags: string[]; value: number[] | Duration[] }[] {
+    const res: { tags: string[]; value: number[] | Duration[] }[] = []
+
+    for (const metrics of this.metrics.values()) {
+      if (metrics.length > 0 && metrics[0].type === 'histogram') {
+        const metric = metrics[metrics.length - 1]
+        if (metric.type === 'histogram') {
+          res.push(metric.value)
+        }
+      }
+    }
+
+    return res
+  }
+
+  getGauges(): Metric[][] {
+    const res: Metric[][] = []
+    for (const metrics of this.metrics.values()) {
+      if (metrics.length > 0 && metrics[0].type === 'gauge') {
+        res.push(metrics)
+      }
+    }
+    return res
   }
 
   handleUpdate(m: (ExecutorStateFields | Metric) & CommonMessage) {
-    this.timestamp = m.timestamp
-    if ('ended' in Object.keys(m)) {
+    if (m.type === 'executor') {
       const message = m as ExecutorStateFields
       this.ended = message.ended
       this.startTime = message.startTime
@@ -347,10 +446,15 @@ export class ExecutorState implements ExecutorStateFields {
     } else {
       const metric = m as Metric
       const insertIntoMetrics = (tags: (MetricKey | string)[]) => {
-        const entry = this.metrics.getDefault(tags, [])
-        entry.push(metric)
-        if (entry.length > 100) {
-          entry.shift()
+        const key = ExecutorState.makeKey(tags)
+        if (!this.metrics.has(key)) {
+          this.metrics.set(key, [metric])
+        } else {
+          const entry = this.metrics.get(key) as Metric[]
+          entry.push(metric)
+          if (entry.length > 100) {
+            entry.shift()
+          }
         }
       }
 
@@ -407,6 +511,23 @@ export type RunState = 'running' | 'startable' | 'paused'
 
 export type Scenario = {
   name: string
-  startTime: DateTime
   executors: Executor[]
+}
+
+export namespace Scenario {
+  export function fromObject(obj: any): Scenario {
+    return {
+      name: obj.name,
+      executors: obj.executors.map(Executor.fromObject)
+    }
+  }
+}
+
+export type TestRunInfo = {
+  runId: string
+  startTime: DateTime
+  endTime: DateTime
+  duration: Duration
+  status: 'completed' | 'failed' | 'stopped'
+  scenario: Scenario[]
 }

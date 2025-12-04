@@ -12,6 +12,7 @@ const props = withDefaults(
     index: string
     items: BulletLegendItemInterface[]
     customTooltip?: Component
+    formatter?: (tick: number | Date, i: number, ticks: number[] | Date[]) => string
   }>(),
   {
     colors: () => []
@@ -30,9 +31,10 @@ function template(d: any) {
       return { ...legendReference, value }
     })
     const TooltipComponent = props.customTooltip ?? ChartTooltip
-    createApp(TooltipComponent, { title: d[props.index].toString(), data: omittedData }).mount(
-      componentDiv
-    )
+    const title = props.formatter
+      ? props.formatter(d[props.index], 0, [d[props.index]])
+      : d[props.index].toString()
+    createApp(TooltipComponent, { title: title, data: omittedData }).mount(componentDiv)
     wm.set(d, componentDiv.innerHTML)
     return componentDiv.innerHTML
   }

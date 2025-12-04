@@ -50,7 +50,6 @@ type Data = (typeof props.data)[number]
 
 const index = computed(() => props.index as KeyOfT)
 const colors = computed(() => {
-  console.log(props.colors)
   return props.colors?.length ? props.colors : defaultColors(props.categories.length)
 })
 
